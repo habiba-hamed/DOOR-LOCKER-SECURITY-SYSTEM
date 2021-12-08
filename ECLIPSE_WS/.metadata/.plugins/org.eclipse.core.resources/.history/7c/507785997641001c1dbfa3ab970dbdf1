@@ -1,0 +1,158 @@
+/*******************************************************************************
+ * module:   HMI_ECU
+ *
+ * File Name: hmi_ecu.c
+ *
+ * Description: Source file for Door locker security system application HMI_ECU
+ *
+ * Created on: 28‏/10‏/2021
+ *
+ * Author: Habiba Hamed
+ *
+ ********************************************************************************/
+
+#include "keypad.h" /* to take the input from the user at the form of numbers */
+#include "lcd.h"    /* to display the output and communicate with the user in friendly way */
+#include "uart.h"   /* to communicate with CONTROL_ECU */
+#include "timer.h"  /* to count time */
+#include "util/delay.h"
+#include "hmi_ecu.h"
+#include  <avr/io.h>
+/*******************************************************************************
+ *                           Global Variables                                  *
+ *******************************************************************************/
+uint8 g_command;                                /* global variable to store the commands in  */
+static volatile uint8  g_firstTimeOrNot;        /*global variable to store in if it's the first time to use the system or not */
+uint8 g_password1[PASSWORD_SIZE];          /*array to use in checking if user entered two matched password or not*/
+uint8 g_password2[PASSWORD_SIZE];
+g_check=PASSWORD_MATCH;
+int main (void){
+	LCD_init();
+
+	Uart_ConfigType configuration={ASYNCHRONOUS_DOUBLE_SPPED_MODE,EIGHT,DISABLED,ONE,9600};
+	UART_init(&configuration);
+
+	LCD_clearScreen();
+	LCD_moveCursor(0,8);
+	LCD_displayString("DOOR LOCKER SYSTEM");
+	LCD_moveCursor(1,13);
+	LCD_displayString("WELCOME");
+	_delay_ms(5000);
+	ifFirstTimeOrNot();
+	SREG |= (1<<7);       /* Enable I-Bit for Interrupts */
+
+
+	while (1){
+		if(g_firstTimeOrNot==0){
+		checkPasswordMatching();
+
+
+
+	}
+}
+}
+/*******************************************************************************
+ *                      Functions Definitions                                   *
+ *******************************************************************************/
+/* Description :
+ * function to make sure that both ECUs are ready
+ * CONTROL_ECU is ready to receive
+ * HMI_ECU is ready to sent
+ * and making sure that CONTROL_ECU has been received
+ */
+void sendCommand(uint8 command)
+{
+
+	UART_sendByte(READY);
+	while(UART_recieveByte() != READY){};
+	UART_sendByte(command);
+	while(UART_recieveByte() != DONE){};
+
+}
+/* Description :
+ * function to make sure that both ECUs are ready
+ * CONTROL_ECU is ready to sent
+ * HMI_ECU is ready to receive
+ * and making sure that HMI_ECU has been received
+ */
+uint8 recieveCommand(void)
+{
+
+	while(UART_recieveByte() != READY){};
+	UART_sendByte(READY);
+	g_command=UART_recieveByte();
+	UART_sendByte(DONE);
+	return g_command;
+}
+/* Description :
+ * function to check if it is the fisrt time to use the system or not by checking if old password is saved or not
+ */
+void ifFirstTimeOrNot(void)
+{
+	sendCommand(CHECK_IF_PASSWORD_SAVED);
+	switch (recieveCommand())
+	{
+	case PASSWORD_SAVED:
+		g_firstTimeOrNot=1;
+		break;
+	case NO_SAVED_PASSWORD:
+		g_firstTimeOrNot=0;
+		break;
+
+	}
+
+}
+uint8 enterNewPassword(void){
+	uint8 i;
+	LCD_clearScreen();
+	LCD_moveCursor(0,8);
+	LCD_displayString("Please Enter New Password (5) ");
+	for(i=0;i<PASSWORD_SIZE;i++){
+		g_password1[i]=KEYPAD_getPressedKey();
+		delay_ms(1000);
+	}
+	LCD_clearScreen();
+	LCD_moveCursor(0,8);
+	LCD_displayString("Please Re-enter Password (5) ");
+	for (i=0;i<PASSWORD_SIZE;i++){
+		g_password2[i]=KEYPAD_getPressedKey();
+		delay_ms(1000);
+	}
+	for( i=0;i<PASSWORD_SIZE;i++){
+		if (g_password1[i]!=g_password2[i])
+		{
+			g_check=PASSWORD_DISMATCH;
+		}
+	}
+	return g_check;
+}
+void checkPasswordMatching(void){
+	enterNewPassword();
+	if( g_check==PASSWORD_MATCH){
+		SendPassword(g_password1);
+	}
+	else if (g_check==PASSWORD_MISMATCH){
+		LCD_clearScreen();
+		LCD_moveCursor(0,8);
+		LCD_displayString("MISMATCHING!!");
+		enterNewPassword();
+	}
+}
+void SendPassword(uint8 a_arr[])
+{
+	uint8 i;
+	/*
+	 * 1. SEND A READY COMMAND TO THE CONTROL_ECU TO SAY THAT HMI_ECI IS READY
+	 * 2.WAITING UNTIL THE CONTROL_ECU SEND A READY COMMAND TOO
+	 * 3.SENDING THE PASSWORD ENTERED BY THE USER FROM THE GLOBAL ARRAY
+	 * 4. WAITING UNTIL THE CONTROL_ECU SENDS DONE COMMAND
+	 */
+	UART_sendByte(READY);
+	while(UART_recieveByte() != READY){};
+
+	for( i=0;i<PASSWORD_SIZE;i++)
+	{
+		UART_sendByte(a_arr[i]);
+	}
+	while(UART_recieveByte() != DONE){};
+}

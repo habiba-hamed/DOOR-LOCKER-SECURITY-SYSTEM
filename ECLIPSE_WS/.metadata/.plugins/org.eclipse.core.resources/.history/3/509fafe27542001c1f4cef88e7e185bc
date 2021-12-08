@@ -1,0 +1,57 @@
+/*******************************************************************************
+ * module:   HMI_ECU
+ *
+ * File Name: hmi.h
+ *
+ * Description: Header file for Door locker security system application HMI_ECU
+ *
+ * Created on: 28‏/10‏/2021
+ *
+ * Author: Habiba Hamed
+ *
+ ********************************************************************************/
+
+#ifndef HMI_H_
+#define HMI_H_
+/************************************************************************************************
+ *                                      Definitions                                             *
+ ************************************************************************************************/
+
+#define READY                                              1
+#define DONE                                               2
+#define PASSWORD_SEND                                      3
+#define PASSWORD_MATCH                                     4
+#define PASSWORD_MISMATCH                                  5
+#define PASSWORD_CONFIRMATION_SEND                         6
+#define CHANGE_PASSWORD                                    7
+#define OPEN_DOOR                                          8
+#define CHECK_PASSWORD                                     9
+#define ERROR_MESSAGE                                      10
+#define CHECK_IF_SAVED                                     11
+#define SAVED                                              12
+#define NOT_SAVED                                          13
+#define MAX_WRONG_COUNTER                                  3
+#define PASSWORD_SIZE                                      5
+#define DEFUALT_VALUE_OF_EEPROM                            1
+
+
+
+/************************************************************************************************
+ *                                TYPED DECLARATION                                             *
+ ************************************************************************************************/
+typedef enum{
+	PLUS='+',MINUS='-'
+}mainOptionData;
+
+/************************************************************************************************
+ *                                   FUNCTIONS Prototypes                                                 *
+ ************************************************************************************************/
+/* Description :
+ * function to make sure that both ECUs are ready
+ * CONTROL_ECU is ready to receive
+ * HMI_ECU is ready to sent
+ * and making sure that CONTROL_ECU has been received
+ */
+void sendCommand(uint8 command);
+
+#endif /* HMI_H_ */

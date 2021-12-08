@@ -1,0 +1,94 @@
+/*******************************************************************************
+ * module:   HMI_ECU
+ *
+ * File Name: hmi_ecu.c
+ *
+ * Description: Source file for Door locker security system application HMI_ECU
+ *
+ * Created on: 28‏/10‏/2021
+ *
+ * Author: Habiba Hamed
+ *
+ ********************************************************************************/
+
+#include "keypad.h" /* to take the input from the user at the form of numbers */
+#include "lcd.h"    /* to display the output and communicate with the user in friendly way */
+#include "uart.h"   /* to communicate with CONTROL_ECU */
+#include "timer.h"  /* to count time */
+#include "util/delay.h"
+#include "hmi_ecu.h"
+#include  <avr/io.h>
+#include "std_types.h"
+/************************************************************************************************
+ *                                 UART & TIMER CONFIGURATIONS                                  *
+ ************************************************************************************************/
+/*
+ * configure the UART at:
+ * Asynchronous mode
+ * double speed mode
+ * eight byte character size
+ * disabled parity bit
+ * one stop bit
+ * 9600 boud-rate
+ *
+ */
+Uart_ConfigType UART_configuration = {ASYNCHRONOUS_DOUBLE_SPPED_MODE,EIGHT,DISABLED,ONE,9600};
+
+/*
+ * configure the timer at :
+ * timer 1
+ * compare mode
+ * prescaler 1024
+ * initial value=0
+ * compare match value =1000 to count 1 second
+ */
+
+TIMER_ConfigType TIMER_configuration= {TIMER_0,COMPARE_MODE,F_CPU_1024,0,1000};
+
+/************************************************************************************************
+ *                                GLOBAL VARIABLES                                              *
+ ************************************************************************************************/
+uint8 g_password[PASSWORD_SIZE];         /*global array to store the first password entered in it */
+uint8 g_reenterdPassword[PASSWORD_SIZE]; /*global array to store the Re-entered password entered in it */
+volatile uint8 g_tick=0;                 /*global ticks to count timer interrupts and been volatile to
+                                          be able to used in ISR code */
+uint8 g_command;                         /*global variable to store the commands in it */
+uint8 g_wrong=0;                         /*global variable to count wrong password entered times*/
+uint8 g_pressedKey;                      /*global variable to hold the key value */
+
+int main()
+{
+	LCD_init();
+
+	UART_init(&UART_configuration);
+
+	LCD_clearScreen();
+	LCD_displayStringRowColumn(0,8,"DOOR LOCKER SYSTEM");
+	LCD_displayStringRowColumn(1,13,"WELCOME");
+	_delay_ms(5000);
+
+
+	SREG |= (1<<7);       /* Enable I-Bit for Interrupts */
+	while (1){
+	}
+	}
+
+/*******************************************************************************
+ *                      Functions Definitions                                   *
+ *******************************************************************************/
+/* Description :
+ * function to make sure that both ECUs are ready
+ * CONTROL_ECU is ready to receive
+ * HMI_ECU is ready to sent
+ * and making sure that CONTROL_ECU has been received
+ */
+void sendCommand(uint8 command)
+{
+
+	UART_sendByte(READY);
+	while(UART_receiveByte() != READY){};
+	UART_sendByte(command);
+	while(UART_receiveByte() != DONE){};
+
+}
+

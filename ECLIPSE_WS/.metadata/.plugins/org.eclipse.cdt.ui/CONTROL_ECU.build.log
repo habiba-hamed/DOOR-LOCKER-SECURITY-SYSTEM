@@ -1,0 +1,20 @@
+16:19:46 **** Incremental Build of configuration Debug for project CONTROL_ECU ****
+make all 
+Invoking: Print Size
+avr-size --format=avr --mcu=atmega16 CONTROL_ECU.elf
+AVR Memory Usage
+----------------
+Device: atmega16
+
+Program:   14698 bytes (89.7% Full)
+(.text + .data + .bootloader)
+
+Data:        310 bytes (30.3% Full)
+(.data + .bss + .noinit)
+
+
+Finished building: sizedummy
+ 
+
+16:19:46 Build Finished. 0 errors, 0 warnings. (took 342ms)
+

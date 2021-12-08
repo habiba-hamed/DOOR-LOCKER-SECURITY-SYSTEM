@@ -1,0 +1,286 @@
+/*******************************************************************************
+ * module:   HMI_ECU
+ *
+ * File Name: hmi_ecu.c
+ *
+ * Description: Source file for Door locker security system application HMI_ECU
+ *
+ * Created on: 28‏/10‏/2021
+ *
+ * Author: Habiba Hamed
+ *
+ ********************************************************************************/
+
+#include "keypad.h" /* to take the input from the user at the form of numbers */
+#include "lcd.h"    /* to display the output and communicate with the user in friendly way */
+#include "uart.h"   /* to communicate with CONTROL_ECU */
+#include "timer.h"  /* to count time */
+#include "util/delay.h"
+#include "hmi_ecu.h"
+#include  <avr/io.h>
+#include "std_types.h"
+/************************************************************************************************
+ *                                 UART & TIMER CONFIGURATIONS                                  *
+ ************************************************************************************************/
+/*
+ * configure the UART at:
+ * Asynchronous mode
+ * double speed mode
+ * eight byte character size
+ * disabled parity bit
+ * one stop bit
+ * 9600 boud-rate
+ *
+ */
+Uart_ConfigType UART_configuration = {ASYNCHRONOUS_DOUBLE_SPPED_MODE,EIGHT,DISABLED,ONE,9600};
+
+/*
+ * configure the timer at :
+ * timer 1
+ * compare mode
+ * prescaler 1024
+ * initial value=0
+ * compare match value =1000 to count 1 second
+ */
+
+TIMER_ConfigType TIMER_configuration= {TIMER_0,COMPARE_MODE,F_CPU_1024,0,1000};
+
+/************************************************************************************************
+ *                                GLOBAL VARIABLES                                              *
+ ************************************************************************************************/
+uint8 g_password[PASSWORD_SIZE];         /*global array to store the first password entered in it */
+//uint8 g_reenterdPassword[PASSWORD_SIZE]; /*global array to store the Re-entered password entered in it */
+volatile uint8 g_tick=0;                 /*global ticks to count timer interrupts and been volatile to
+                                           be able to used in ISR code */
+uint8 g_command;                         /*global variable to store the commands in it */
+
+uint8 g_pressedKey=1;                      /*global variable to hold the key value */
+
+int main()
+{
+	LCD_init();
+	UART_init(&UART_configuration);
+
+	LCD_clearScreen();
+	LCD_displayStringRowColumn(0,2,"DOOR LOCKER SECURITY SYSTEM");
+	LCD_displayStringRowColumn(1,12,"WELCOME");
+	_delay_ms(4000);
+
+	SREG |= (1<<7);       /* Enable I-Bit for Interrupts */
+	while (1){
+		sendCommand(CHECK_IF_SAVED);
+		if (receiveCommand()==SAVED)
+		{
+
+			mainOptionsDisplay();
+		}
+		else if (receiveCommand()== NOT_SAVED){
+			enterNewPassword();
+
+		}
+		break;
+
+	}
+}
+
+
+	/*******************************************************************************
+	 *                      Functions Definitions                                   *
+	 *******************************************************************************/
+	/* Description :
+	 * function to make sure that both ECUs are ready
+	 * CONTROL_ECU is ready to receive
+	 * HMI_ECU is ready to sent
+	 * and making sure that CONTROL_ECU has been received
+	 */
+	void sendCommand(uint8 command)
+	{
+
+		UART_sendByte(READY);
+		while(UART_receiveByte() != READY){};
+		UART_sendByte(command);
+		while(UART_receiveByte() != DONE){};
+
+	}
+	/* Description :
+	 * function to make sure that both ECUs are ready
+	 * CONTROL_ECU is ready to sent
+	 * HMI_ECU is ready to receive
+	 * and making sure that HMI_ECU has been received
+	 */
+	uint8 receiveCommand(void)
+	{
+
+		while(UART_receiveByte() != READY){};
+		UART_sendByte(READY);
+		g_command=UART_receiveByte();
+		UART_sendByte(DONE);
+		return g_command;
+	}
+
+	/*
+	 * Description:
+	 * function to get the password from user and check if it valid or not and print ****
+	 * on the screen instead of the password and store it in global variable
+	 */
+	void getPassword(void){
+		uint8 counter=0,key;
+		key=KEYPAD_getPressedKey();
+		while(key != '=')
+		{
+			key=KEYPAD_getPressedKey();
+			if( (key != '+' &&key != '-' &&key != '*' && key != '%' && key != '=') || (key>= 0 && key<= 9) )
+			{
+				if(counter < PASSWORD_SIZE)
+				{
+					g_password[counter]=key;
+					LCD_displayCharacter('*');
+					counter++;
+				}
+			}
+			_delay_ms(1500);
+		}
+	}
+
+	/*
+	 * description:
+	 * function to send the password to CONTROL_ECU
+	 * but at first check if CONTROL_ECU is ready to receive or not
+	 */
+	void sendPassword(uint8 *password_arr[],uint8 size)
+	{
+		UART_sendByte(READY);
+		while(UART_receiveByte() != READY){};
+		/* as soon as  CONTROL_ECU is ready HMI_ECU starts to send the password */
+		for(uint8 i=0;i<PASSWORD_SIZE;i++)
+		{
+			UART_sendByte(password_arr[i]);
+		}
+		while(UART_receiveByte() != DONE){};
+	}
+
+
+
+	void enterNewPassword(void){
+		LCD_clearScreen();
+		LCD_displayStringRowColumn(0,0,"PLEASE ENTER NEW PASSWORD(5): ");
+		LCD_moveCursor(1,13);
+		getPassword();
+		sendCommand(PASSWORD_SEND);
+		sendPassword(g_password,PASSWORD_SIZE);
+		LCD_clearScreen();
+		LCD_displayStringRowColumn(0,0,"PLEASE RE-ENTER PASSWORD(5): ");
+		LCD_moveCursor(1,13);
+		getPassword();
+		sendCommand(PASSWORD_CONFIRMATION_SEND);
+		sendPassword(g_password,PASSWORD_SIZE);
+		if(receiveCommand()==PASSWORD_MISMATCH){
+			LCD_clearScreen();
+			LCD_displayStringRowColumn(0,8,"MISMATCHING!!");
+			_delay_ms(4000);
+			enterNewPassword();
+		}
+		else{
+			LCD_clearScreen();
+			LCD_displayStringRowColumn(0,6,"NEW PASSWORD IS SET");
+			_delay_ms(4000);
+			mainOptionsDisplay();
+		}
+	}
+void mainOptionsDisplay(void){
+	mainOptionData data;
+	LCD_clearScreen();
+	LCD_displayStringRowColumn(0,7,"+: OPEN DOOR ");
+	LCD_displayStringRowColumn(1,7,"-: CHANGE PAWSSWORD ");
+	data =KEYPAD_getPressedKey() ;
+	mainOptions(data);
+	_delay_ms(4000);
+}
+void mainOptions(mainOptionData data){
+	LCD_clearScreen();
+	LCD_displayStringRowColumn(0,0,"PLEASE ENTER THE PASSWORD(5): ");
+	LCD_moveCursor(1,13);
+	_delay_ms(3000);
+	getPassword();
+	sendCommand(CHECK_PASSWORD);
+	sendPassword(g_password,PASSWORD_SIZE);
+	switch (receiveCommand()){
+	case PASSWORD_MATCH:
+		switch (data){
+		case PLUS :
+			sendCommand(OPEN_DOOR);
+			doorOpeningAndClosing();
+			break;
+		case MINUS:
+			LCD_clearScreen();
+			LCD_displayStringRowColumn(0,8,"WRONG PASSWORD!!!");
+			enterNewPassword();
+			break;
+		}
+		break;
+		case PASSWORD_MISMATCH:
+			mainOptions(data);
+			break;
+		case ERROR_MESSAGE:
+			ERROR_messageDisplay();
+			while (g_tick!=0){
+
+			}
+			mainOptionsDisplay();
+			break;
+	}
+}
+
+/*void TIMER0_doorIsOpeningScreen(void){
+	g_tick++;
+	if(g_tick==18){
+		TIMER_deinit(TIMER_0);
+		g_tick=0;
+	}
+}*/
+void TIMER0_motorCount(void){
+	g_tick++;
+
+	if (g_tick==50)
+	{
+
+		g_tick=0;
+		TIMER_deinit(TIMER_0);
+	}
+}
+void doorOpeningAndClosing(void){
+	TIMER_init(&TIMER_configuration); /*turn on the timer to count  */
+	TIMER_setCallBack(TIMER0_motorCount,TIMER_0); /* count 33-sec */
+	while (g_tick<20){
+		LCD_clearScreen();
+		LCD_displayStringRowColumn(0,8,"DOOR IS OPENING");
+	}
+	while (g_tick>20 && g_tick<30){
+		LCD_clearScreen();
+	}
+	while (g_tick>30 && g_tick<50){
+		LCD_displayStringRowColumn(0,8,"DOOR IS CLOSING");
+	}
+	mainOptionsDisplay();
+}
+/*void closeDoor(void){
+	LCD_clearScreen();
+	LCD_displayStringRowColumn(0,8,"DOOR IS CLOSING");
+	TIMER_init(&TIMER_configuration);
+	TIMER_setCallBack(TIMER0_doorIsClosingScreen,TIMER_0);
+}*/
+void TIMER0_errorScreen(void){
+	g_tick++;
+	if (g_tick==60){
+		LCD_clearScreen();
+		g_tick=0;
+		TIMER_deinit(TIMER_0);
+	}
+}
+void ERROR_messageDisplay(void){
+	LCD_clearScreen();
+	LCD_displayStringRowColumn(0,8,"thief!!!");
+	TIMER_init(&TIMER_configuration);
+	TIMER_setCallBack(TIMER0_errorScreen,TIMER_0);
+}
+

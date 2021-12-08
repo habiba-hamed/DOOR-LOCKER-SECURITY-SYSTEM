@@ -1,0 +1,24 @@
+/*******************************************************************************
+ * module:   HMI_ECU
+ *
+ * File Name: hmi_ecu.h
+ *
+ * Description: Header file for Door locker security system application HMI_ECU
+ *
+ * Created on: 28‏/10‏/2021
+ *
+ * Author: Habiba Hamed
+ *
+ ********************************************************************************/
+
+#ifndef HMI_ECU_H_
+#define HMI_ECU_H_
+#define READY                                               0x01
+#define DONE                                                0x02
+#define CHECK_IF_PASSWORD_SAVED                             0xB
+#define PASSWORD_SAVED                                      0xC
+#define NO_SAVED_PASSWORD                                   0xD
+#define PASSWORD_SIZE                                       5
+#define PASSWORD_DISMATCH                                   0
+#define PASSWORD_MATCH                                      1
+#endif /* HMI_ECU_H_ */

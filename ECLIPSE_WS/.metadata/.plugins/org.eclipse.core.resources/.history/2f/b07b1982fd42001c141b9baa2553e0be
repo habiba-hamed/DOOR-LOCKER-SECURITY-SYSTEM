@@ -1,0 +1,102 @@
+/*******************************************************************************
+ * module:   CONTROL_ECU
+ *
+ * File Name: control_ecu.h
+ *
+ * Description: Header file for Door locker security system application CONTROL_ECU
+ *
+ * Created on: 28‏/10‏/2021
+ *
+ * Author: Habiba Hamed
+ *
+ ********************************************************************************/
+
+#ifndef CONTROL_ECU_H_
+#define CONTROL_ECU_H_
+/************************************************************************************************
+ *                                        Definitions                                           *
+ ************************************************************************************************/
+
+#define READY                                              1
+#define DONE                                               2
+#define PASSWORD_SEND                                      3
+#define PASSWORD_MATCH                                     4
+#define PASSWORD_MISMATCH                                  4
+#define PASSWORD_CONFIRMATION_SEND                         5
+#define CHANGE_PASSWORD                                    6
+#define OPEN_DOOR                                          7
+#define CHECK_PASSWORD                                     8
+#define ERROR_MESSAGE                                      9
+#define CHECK_IF_SAVED                                     10
+#define SAVED                                              11
+#define NOT_SAVED                                          12
+#define MAX_WRONG_COUNTER                                  3
+#define PASSWORD_SIZE                                      5
+#define DEFUALT_VALUE_OF_EEPROM                            1
+
+/************************************************************************************************
+ *                                   FUNCTIONS Prototypes                                                 *
+ ************************************************************************************************/
+/* Description :
+ * function to make sure that both ECUs are ready
+ * CONTROL_ECU is ready to receive
+ * HMI_ECU is ready to sent
+ * and making sure that CONTROL_ECU has been received
+ */
+void sendCommand(uint8 command);
+/* Description :
+ * function to make sure that both ECUs are ready
+ * CONTROL_ECU is ready to sent
+ * HMI_ECU is ready to receive
+ * and making sure that HMI_ECU has been received
+ */
+uint8 receiveCommand(void);
+/* Description :
+ * the ISR of TIMER0 which its code counts 18-seconds
+ */
+void TIMER0_rotateMotorCw(void);
+/* Description :
+ * the ISR of TIMER0 which its code counts 15-seconds
+ */
+void TIMER0_rotateMotorAcw(void);
+/* Description :
+ * function to rotate the motor clock wise for 15-seconds and hold the motor for 3-seconds *opening the door*
+ */
+void openDoor(void);
+/* Description :
+ * function to rotate the motor Anti-clock wise for 15-seconds *closing the door*
+ */
+void closeDoor(void);
+/* Description :
+ * the ISR of timer one to count 60-seconds and turn off the buzzer after finishing counting
+ */
+void TIMER0_buzzer(void);
+/* Description :
+ * function to turn on the buzzer for 60-minutes and turn on the module for one time only using
+ * static variable
+ */
+void BUZZER_trigger(void);
+/* Description :
+ * function to receive password from HMI_ECU but after making sure that both of them are
+ * ready
+ */
+void receivePassword(uint8 *arr_password[]);
+/* Description :
+ * function to check if two password are the same or not according to its size and digits
+ */
+uint8 compareTwoPassword(uint8 *arr_password1[],uint8* arr_password2[]);
+/* Description :
+ * function to store the password in specific consecutive locations in EEPROM
+ */
+void savePassword(uint8 *arr_password);
+/* Description :
+ * function to get the stored password from EEPROM and storing it in array of char
+ */
+void getSavedPassword(uint8 *arr_password);
+/* Description :
+ * function to check if the there is a stored password in EEPROM or it is the first
+ *  for the system to be used
+ */
+//uint8 checkIfSaved(void);
+
+#endif /* CONTROL_ECU_H_ */

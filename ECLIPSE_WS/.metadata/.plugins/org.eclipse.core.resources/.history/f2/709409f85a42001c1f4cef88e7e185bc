@@ -1,0 +1,125 @@
+/******************************************************************************
+ *
+ * Module: External EPPROM
+ *
+ * File Name: external_eeprom.c
+ *
+ * Description: Source file for the External EEPROM driver
+ *
+ * Author: Habiba Hamed
+ *
+ *******************************************************************************/
+#include "twi.h"
+#include "avr/io.h"
+#include "external_eeprom.h"
+
+/*
+ * Description :
+ *
+ * function to initialize the I2C(TWI) module inside the MC
+ *
+ */
+void EEPROM_init(void){
+	TWI_ConfigType twi_Config={FAST_MODE,0b00000010};
+	TWI_init(&twi_Config);
+}
+/*
+ * Description :
+ *
+ * function to write byte inside specific memory location in EEPROM
+ *
+ */
+uint8 EEPROM_writeByte(uint16 u16address,uint8*u8data){
+	/*sending the start bit */
+	TWI_start();
+	/* making sure that the start bit has been successfully sent */
+	if (TWI_getStatus() != TWI_START)
+	{
+		return ERROR;
+	}
+	/*sending the 7-bit unique address so we need to get A8 A9 A10 address bits from the
+	 * memory location address and R/W Bit =0 (write) */
+	TWI_writeByte((uint8)((0xA0) | ((u16address & 0x0700)>>7)));
+	/*making sure that the slave address and write bit have been successfully sent*/
+	if (TWI_getStatus() != TWI_MT_SLA_W_ACK)
+	{
+		return ERROR;
+	}
+	/*sending the memory address that we want to write in
+	 * by sending the first 8-bits in the memory location address*/
+	TWI_writeByte((uint8)u16address);
+	/*making sure that the required memory address has been successfully sent */
+	if (TWI_getStatus() !=TWI_MT_DATA_ACK){
+		return ERROR;
+	}
+	/*sending the data to be written in the required memory address*/
+	TWI_writeByte(*u8data);
+	/*making sure that the data has been successfully sent */
+	if (TWI_getStatus() !=TWI_MT_DATA_ACK){
+		return ERROR;
+	}
+	/* Send the Stop Bit */
+	TWI_stop();
+
+	return SUCCESS;
+}
+/*
+ * Description :
+ *
+ * function to read byte from specific memory location in EEPROM
+ *
+ */
+uint8 EEPROM_read_Byte(uint16 u16address, uint8*u8data){
+
+	/*sending the start bit */
+	TWI_start();
+	/* making sure that the start bit has been successfully sent */
+	if (TWI_getStatus() != TWI_START)
+	{
+		return ERROR;
+	}
+	/*sending the 7-bit unique address so we need to get A8 A9 A10 address bits from the
+	 * memory location address and R/W Bit =0 (write) */
+	TWI_writeByte((uint8)((0xA0) | ((u16address & 0x0700)>>7)));
+	/*making sure that the slave address and write bit have been successfully sent*/
+	if (TWI_getStatus() != TWI_MT_SLA_W_ACK)
+	{
+		return ERROR;
+	}
+	/*sending the memory address that we want to read from
+	 * by sending the first 8-bits in the memory location address*/
+	TWI_writeByte((uint8)u16address);
+	/*making sure that the required memory address has been successfully sent */
+	if (TWI_getStatus() !=TWI_MT_DATA_ACK){
+		return ERROR;
+	}
+	/*sending the repeating start bit */
+	TWI_start();
+	/* making sure that the repeated start bit has been successfully sent */
+	if (TWI_getStatus() != TWI_REP_START)
+	{
+		return ERROR;
+	}
+	/*sending the 7-bit unique address so we need to get A8 A9 A10 address bits from the
+	 * memory location address and R/W Bit =1 (read) */
+
+	TWI_writeByte((uint8)((0xA0) | ((u16address & 0x0700)>>7) | 1));
+	/*making sure that the slave address and write bit have been successfully sent*/
+	if (TWI_getStatus() != TWI_MT_SLA_W_ACK)
+	{
+		return ERROR;
+	}
+	/* Read Byte from Memory without send ACK */
+	*u8data = TWI_readByteWithNACK();
+	if (TWI_getStatus() != TWI_MR_DATA_NACK)
+		return ERROR;
+
+	/* Send the Stop Bit */
+	TWI_stop();
+
+	return SUCCESS;
+
+}
+
+
+

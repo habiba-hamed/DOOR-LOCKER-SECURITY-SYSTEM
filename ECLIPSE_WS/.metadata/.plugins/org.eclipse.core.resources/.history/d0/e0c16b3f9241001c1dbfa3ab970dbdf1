@@ -1,0 +1,242 @@
+/*******************************************************************************
+ * module:   HMI_ECU
+ *
+ * File Name: hmi_ecu.c
+ *
+ * Description: Source file for Door locker security system application HMI_ECU
+ *
+ * Created on: 28‏/10‏/2021
+ *
+ * Author: Habiba Hamed
+ *
+ ********************************************************************************/
+
+#include "keypad.h" /* to take the input from the user at the form of numbers */
+#include "lcd.h"    /* to display the output and communicate with the user in friendly way */
+#include "uart.h"   /* to communicate with CONTROL_ECU */
+#include "timer.h"  /* to count time */
+#include "util/delay.h"
+#include "hmi_ecu.h"
+#include  <avr/io.h>
+/************************************************************************************************
+ *                                 UART & TIMER CONFIGURATIONS                                  *
+ ************************************************************************************************/
+/*
+ * configure the UART at:
+ * Asynchronous mode
+ * double speed mode
+ * eight byte character size
+ * disabled parity bit
+ * one stop bit
+ * 9600 boud-rate
+ *
+ */
+UART_ConfigType UART_configuration = {ASYNCHRONOUS_DOUBLE_SPPED_MODE,EIGHT,DISABLED,ONE,9600};
+
+/*
+ * configure the timer at :
+ * timer 1
+ * compare mode
+ * prescaler 1024
+ * initial value=0
+ * compare match value =1000 to count 1 second
+ */
+
+TIMER_ConfigType TIMER_configuration= {TIMER_0,COMPARE_MODE,F_CPU_1024,0,1000};
+/*******************************************************************************
+ *                           Global Variables                                  *
+ *******************************************************************************/
+
+int main()
+{
+	LCD_init();
+
+	UART_init(&UART_configuration);
+
+	LCD_clearScreen();
+	LCD_displayStringRowColumn(0,8,"DOOR LOCKER SYSTEM");
+	LCD_displayStringRowColumn(1,13,"WELCOME");
+	_delay_ms(5000);
+
+	ifPassSavedORNOT();   /* to check either it's first time for the user to log in or no */
+
+	SREG |= (1<<7);       /* Enable I-Bit for Interrupts */
+	while (1){
+		if(g_firstTimeOrNot==0){
+			checkPasswordMatching();
+		}
+	}
+}
+/*******************************************************************************
+ *                      Functions Definitions                                   *
+ *******************************************************************************/
+/* Description :
+ * function to make sure that both ECUs are ready
+ * CONTROL_ECU is ready to receive
+ * HMI_ECU is ready to sent
+ * and making sure that CONTROL_ECU has been received
+ */
+void sendCommand(uint8 command)
+{
+
+	UART_sendByte(READY);
+	while(UART_recieveByte() != READY){};
+	UART_sendByte(command);
+	while(UART_recieveByte() != DONE){};
+
+}
+/* Description :
+ * function to make sure that both ECUs are ready
+ * CONTROL_ECU is ready to sent
+ * HMI_ECU is ready to receive
+ * and making sure that HMI_ECU has been received
+ */
+uint8 recieveCommand(void)
+{
+
+	while(UART_recieveByte() != READY){};
+	UART_sendByte(READY);
+	g_command=UART_recieveByte();
+	UART_sendByte(DONE);
+	return g_command;
+}
+/* Description :
+ * function to check if it is the fisrt time to use the system or not by checking if old password is saved or not
+ */
+void ifFirstTimeOrNot(void)
+{
+	sendCommand(CHECK_IF_PASSWORD_SAVED);
+	switch (recieveCommand())
+	{
+	case PASSWORD_SAVED:
+		g_firstTimeOrNot=1;
+		break;
+	case NO_SAVED_PASSWORD:
+		g_firstTimeOrNot=0;
+		break;
+
+	}
+
+}
+uint8 enterNewPassword(void){
+	uint8 i;
+	LCD_clearScreen();
+	LCD_displayStringRowColumn(0,0,"Please Enter New Password: (5) ");
+
+
+	for(i=0;i<PASSWORD_SIZE;i++){
+		g_password1[i]=KEYPAD_getPressedKey();
+		delay_ms(1000);
+	}
+	LCD_clearScreen();
+	LCD_displayStringRowColumn(0,0,"Please Re-enter Password (5) ");
+	for (i=0;i<PASSWORD_SIZE;i++){
+		g_password2[i]=KEYPAD_getPressedKey();
+		delay_ms(1000);
+	}
+	for( i=0;i<PASSWORD_SIZE;i++){
+		if (g_password1[i]!=g_password2[i])
+		{
+			g_check=PASSWORD_MISMATCH;
+		}
+	}
+	return g_check;
+}
+void checkPasswordMatching(void){
+	enterNewPassword();
+	if( g_check==PASSWORD_MATCH){
+		SendPassword(g_password1);
+	}
+	else if (g_check==PASSWORD_MISMATCH){
+		LCD_clearScreen();
+		LCD_displayStringRowColumn(0,8,"MISMATCHING!!");
+		enterNewPassword();
+	}
+}
+void SendPassword(uint8 a_arr[])
+{
+	uint8 i;
+	/*
+	 * 1. SEND A READY COMMAND TO THE CONTROL_ECU TO SAY THAT HMI_ECI IS READY
+	 * 2.WAITING UNTIL THE CONTROL_ECU SEND A READY COMMAND TOO
+	 * 3.SENDING THE PASSWORD ENTERED BY THE USER FROM THE GLOBAL ARRAY
+	 * 4. WAITING UNTIL THE CONTROL_ECU SENDS DONE COMMAND
+	 */
+	UART_sendByte(READY);
+	while(UART_recieveByte() != READY){};
+
+	for( i=0;i<PASSWORD_SIZE;i++)
+	{
+		UART_sendByte(a_arr[i]);
+	}
+	while(UART_recieveByte() != DONE){};
+}
+void mainFucntion(void)
+{
+	/*
+	 * 1. DISPLAY THE MAIN OPTIONS TO THE USER ON THE SCREEN
+	 * 2.DEPENDING ON WHICH OPTION HE CHOSE DO IT
+	 * 3.CASE'+':
+	 *           REQUEST THE OLD PASSOWRD
+	 *           FILL IN THE PASSWORD FROM THE USER
+	 *           SEND COMMAND TO CONTROL_ECU TO CHECK IF PASSWORD MATCHES WHAT THE USER ENTERED OR NOT
+	 *           IF IT MATCHES:
+	 *                         GO TO STATE NUMBER 0 TO CHANGE THE PASSWORD
+	 *           IF NOT:
+	 *                  DISPLAY PASSWORD WRONG MESSAGE ALSO INCREMENT THE GLOBAL WRONG VARIABLE
+	 *   CASE'-':
+	 *            REQUEST THE OLD PASSOWRD
+	 *            FILL IN THE PASSWORD FROM THE USER
+	 *            SEND COMMAND TO CONTROL_ECU TO CHECK IF PASSWORD MATCHES WHAT THE USER ENTERED OR NOT
+	 *            IF IT MATCHES:
+	 *                          GO TO STATE NUMBER 2 TO OPEN THE DOOR
+	 *            IF NOT:
+	 *                   DISPLAY PASSWORD WRONG MESSAGE ALSO INCREMENT THE GLOBAL WRONG VARIABLE
+	 */
+	LCD_clearScreen();
+	LCD_displayStringRowColumn(0,7,"(+): CHANGE PASSWORD");
+	LCD_displayStringRowColumn(1,7,"(-): OPEN DOOR");
+	switch(KeyPad_getPressedKey())
+	{
+	case '+':
+		LCD_clearScreen();
+		LCD_displayStringRowColumn(0,0,"PLEASE ENTER OLD PASSWORD:(5)");
+		LCD_goToRowColumn(0,12);
+		_delay_ms(1500);
+		fillInPassword(g_password);
+		sendCommand(CHECK_PASSWORD);
+		SendPassword(g_password);
+		switch (recieveCommand())
+		{
+		case PASSWORD_MATCH:
+			g_flag=0;
+			g_stateNum=0;
+			g_wrong=0;
+			break;
+		case PASSWORD_NOT_MATCHED:
+			wrongPasswordScreen();
+			break;
+		}
+		break;
+		case '-':
+			LCD_clearScreen();
+			LCD_displayStringRowColumn(0,0,"PLEASE ENTER PASSWORD:(5)");
+			LCD_goToRowColumn(ROW_ONE,12);
+			_delay_ms(1500);
+			fillInPassword(g_password);
+			sendCommand(CHECK_PASSWORD);
+			SendPassword(g_password);
+			switch (recieveCommand()){
+			case PASSWORD_MATCH:
+				sendCommand(OPEN_DOOR);
+				g_stateNum=2;
+				g_wrong=0;
+				break;
+			case PASSWORD_NOT_MATCHED:
+				wrongPasswordScreen();
+				break;
+			}
+			break;
+	}
+
+}

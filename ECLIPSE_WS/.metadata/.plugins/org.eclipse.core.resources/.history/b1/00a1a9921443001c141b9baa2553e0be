@@ -1,0 +1,88 @@
+/*******************************************************************************
+ * module:   HMI_ECU
+ *
+ * File Name: hmi_ecu.h
+ *
+ * Description: Header file for Door locker security system application HMI_ECU
+ *
+ * Created on: 28‏/10‏/2021
+ *
+ * Author: Habiba Hamed
+ *
+ ********************************************************************************/
+
+#ifndef HMI_ECU_H_
+#define HMI_ECU_H_
+/************************************************************************************************
+ *                                      Definitions                                             *
+ ************************************************************************************************/
+
+#define READY                                              0x01
+#define DONE                                               0x02
+#define PASSWORD_SEND                                      0x03
+#define PASSWORD_MATCH                                     0x04
+#define PASSWORD_MISMATCH                                  0x05
+#define PASSWORD_CONFIRMATION_SEND                         0x06
+#define CHANGE_PASSWORD                                    0x07
+#define OPEN_DOOR                                          0x08
+#define CHECK_PASSWORD                                     0x09
+#define ERROR_MESSAGE                                      0xA
+#define CHECK_IF_SAVED                                     0xB
+#define SAVED                                              0xC
+#define NOT_SAVED                                          0xD
+#define MAX_WRONG_COUNTER                                  3
+#define PASSWORD_SIZE                                      5
+#define DEFUALT_VALUE_OF_EEPROM                            1
+
+
+
+
+/************************************************************************************************
+ *                                TYPED DECLARATION                                             *
+ ************************************************************************************************/
+typedef enum{
+	PLUS='+',MINUS='-'
+}mainOptionData;
+
+/************************************************************************************************
+ *                                   FUNCTIONS Prototypes                                                 *
+ ************************************************************************************************/
+/* Description :
+ * function to make sure that both ECUs are ready
+ * CONTROL_ECU is ready to receive
+ * HMI_ECU is ready to sent
+ * and making sure that CONTROL_ECU has been received
+ */
+void sendCommand(uint8 command);
+/* Description :
+ * function to make sure that both ECUs are ready
+ * CONTROL_ECU is ready to sent
+ * HMI_ECU is ready to receive
+ * and making sure that HMI_ECU has been received
+ */
+uint8 receiveCommand(void);
+/*
+ * Description:
+ * function to get the password from user and check if it valid or not and print ****
+ * on the screen instead of the password and store it in global varibale
+ */
+void getPassword(void);
+/*
+ * description:
+ * function to send the password to CONTROL_ECU
+ * but at first check if CONTROL_ECU is ready to receive or not
+ */
+void sendPassword(uint8 *password_arr[],uint8 size);
+void enterNewPassword(void);
+void mainOptionsDisplay(void);
+void mainOptions(mainOptionData data);
+//void TIMER0_doorIsOpeningScreen(void);
+//void TIMER0_doorIsClosingScreen(void);
+//void openDoor(void);
+//void closeDoor(void);
+//void TIMER0_motorCount(void);
+void TIMER0_errorScreen(void);
+void ERROR_messageDisplay(void);
+void doorOpeningAndClosing(void);
+
+#endif /* HMI_ECU_H_ */
